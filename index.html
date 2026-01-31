@@ -21,7 +21,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
 <script>
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
@@ -34,13 +33,26 @@ function requestAccess() {
   var name = document.getElementById("name").value;
   if (!name) return alert("Enter name");
 
-  firebase.database().ref("requests").push({
+  var ref = firebase.database().ref("requests").push({
     name: name,
     status: "pending",
     time: Date.now()
   });
-
   document.getElementById("msg").innerHTML = "✅ Request sent. Wait for approval.";
+  pollApproval(ref.key, name);
+}
+
+function pollApproval(key, name) {
+  firebase.database().ref("requests/" + key).on("value", snap => {
+    var d = snap.val();
+    if (!d) return;
+    if (d.status === "approved") {
+      // Redirect to chat.html with room and name
+      window.location.href = "chat.html?room=" + encodeURIComponent(d.room || "general") + "&name=" + encodeURIComponent(name);
+    } else if (d.status === "rejected") {
+      document.getElementById("msg").innerHTML = "❌ Request rejected.";
+    }
+  });
 }
 </script>
 
