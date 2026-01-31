@@ -1,55 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Request to Join Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial; background:#f4f4f4; padding:40px }
+    .box { max-width:500px; margin:auto; background:#fff; padding:20px; border-radius:8px }
+    input, button { width:100%; padding:12px; margin-top:10px }
+    button { background:#007bff; color:#fff; border:none; cursor:pointer }
+  </style>
+</head>
+<body>
+
+<div class="box">
+  <h2>Request to Join Chat</h2>
+  <input id="name" placeholder="Enter your name">
+  <button onclick="requestAccess()">Request Access</button>
+  <p id="msg"></p>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
-/* ===== FIREBASE CONFIG ===== */
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
   databaseURL: "https://royrohit-294fc-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "royrohit-294fc"
 };
+firebase.initializeApp(firebaseConfig);
 
-/* ===== PREVENT DOUBLE INIT ===== */
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
+function requestAccess() {
+  var name = document.getElementById("name").value;
+  if (!name) return alert("Enter name");
 
-const db = firebase.database();
-let reqId = null;
-
-function requestJoin() {
-  const name = document.getElementById("name").value.trim();
-  if (!name) {
-    alert("Please enter your name");
-    return;
-  }
-
-  db.ref("requests").push({
+  firebase.database().ref("requests").push({
     name: name,
     status: "pending",
-    room: "",
     time: Date.now()
-  }).then(ref => {
-    reqId = ref.key;
-    document.getElementById("status").innerText =
-      "⏳ Waiting for admin approval...";
-  }).catch(err => {
-    alert("Firebase error: " + err.message);
   });
 
-  db.ref("requests").child(reqId).on("value", snap => {
-    if (!snap.exists()) return;
-    const data = snap.val();
-
-    if (data.status === "approved") {
-      window.location.href =
-        `chat.html?name=${data.name}&room=${data.room}&id=${reqId}`;
-    }
-
-    if (data.status === "rejected") {
-      document.getElementById("status").innerText =
-        "❌ Request rejected by admin";
-    }
-  });
+  document.getElementById("msg").innerHTML = "✅ Request sent. Wait for approval.";
 }
 </script>
+
+</body>
+</html>
