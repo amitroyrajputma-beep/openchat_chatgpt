@@ -1,110 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Direct Audio Call</title>
+  <title>Audio Call</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: Arial; background: #f4f4f4; margin: 0; padding: 0; }
-    #main { max-width: 400px; margin: 40px auto; background: #fff; border-radius: 8px; padding: 20px; text-align: center; }
-    #status { margin-bottom: 20px; }
-    #remoteAudio { width: 100%; margin-top: 20px; }
-    button { padding: 10px 20px; font-size: 16px; margin: 10px; }
-  </style>
+  <style>body { margin:0; }</style>
 </head>
 <body>
-<div id="main">
-  <h2>Direct Audio Call</h2>
-  <div id="status">Connecting...</div>
-  <audio id="remoteAudio" autoplay controls></audio>
-  <button onclick="endCall()">End Call</button>
-</div>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<div id="jitsi"></div>
 <script>
-var firebaseConfig = {
-  apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
-  databaseURL: "https://royrohit-294fc-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "royrohit-294fc"
-};
-firebase.initializeApp(firebaseConfig);
-
-const urlParams = new URLSearchParams(window.location.search);
-const callId = urlParams.get('call');
-const isCaller = urlParams.get('caller') === '1';
-
-const db = firebase.database();
-const callRef = db.ref('webrtc_calls/' + callId);
-
-let pc = new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
-let localStream, remoteStream;
-let remoteAudio = document.getElementById('remoteAudio');
-let statusDiv = document.getElementById('status');
-
-navigator.mediaDevices.getUserMedia({audio:true, video:false}).then(stream => {
-  localStream = stream;
-  for (const track of stream.getTracks()) pc.addTrack(track, stream);
-  if (isCaller) startCall();
-  else answerCall();
-});
-
-pc.ontrack = event => {
-  if (!remoteStream) {
-    remoteStream = new MediaStream();
-    remoteAudio.srcObject = remoteStream;
-  }
-  remoteStream.addTrack(event.track);
-};
-
-pc.onicecandidate = event => {
-  if (event.candidate) {
-    const type = isCaller ? 'callerCandidates' : 'calleeCandidates';
-    callRef.child(type).push(JSON.stringify(event.candidate));
-  }
-};
-
-function startCall() {
-  statusDiv.innerText = "Calling...";
-  pc.createOffer().then(offer => {
-    pc.setLocalDescription(offer);
-    callRef.child('offer').set(JSON.stringify(offer));
-    callRef.child('answer').on('value', snap => {
-      if (snap.exists()) {
-        const answer = JSON.parse(snap.val());
-        pc.setRemoteDescription(answer);
-        statusDiv.innerText = "Connected!";
-      }
-    });
-  });
-  callRef.child('calleeCandidates').on('child_added', snap => {
-    pc.addIceCandidate(new RTCIceCandidate(JSON.parse(snap.val())));
-  });
+function getQueryParam(name) {
+  let url = new URL(window.location.href);
+  return url.searchParams.get(name);
 }
-
-function answerCall() {
-  statusDiv.innerText = "Incoming call...";
-  callRef.child('offer').once('value').then(snap => {
-    const offer = JSON.parse(snap.val());
-    pc.setRemoteDescription(offer);
-    pc.createAnswer().then(answer => {
-      pc.setLocalDescription(answer);
-      callRef.child('answer').set(JSON.stringify(answer));
-      statusDiv.innerText = "Connected!";
-    });
-  });
-  callRef.child('callerCandidates').on('child_added', snap => {
-    pc.addIceCandidate(new RTCIceCandidate(JSON.parse(snap.val())));
-  });
-}
-
-callRef.child(isCaller ? 'calleeCandidates' : 'callerCandidates').on('child_added', snap => {
-  pc.addIceCandidate(new RTCIceCandidate(JSON.parse(snap.val())));
-});
-
-function endCall() {
-  pc.close();
-  callRef.remove();
-  window.close();
-}
+let room = getQueryParam("room") || "OpenChat_Default_" + Date.now();
+let user = localStorage.getItem("user") || "Guest";
+const domain = "meet.jit.si";
+const options = {
+    roomName: room,
+    width: "100%",
+    height: 600,
+    parentNode: document.getElementById("jitsi"),
+    userInfo: { displayName: user },
+    configOverwrite: { startWithVideoMuted: true }
+};
+const script = document.createElement("script");
+script.src = "https://meet.jit.si/external_api.js";
+script.onload = () => { new JitsiMeetExternalAPI(domain, options); };
+document.body.appendChild(script);
 </script>
 </body>
 </html>
