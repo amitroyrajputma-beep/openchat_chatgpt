@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Panel</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+</head>
+<body>
+
+<h2>Admin Approval Dashboard</h2>
+<div id="list"></div>
+
+<script>
+const ADMIN_KEY="ROY_ADMIN_123";
+
+if(!location.search.includes("key="+ADMIN_KEY)){
+  document.body.innerHTML="❌ Access Denied";
+}
+
+var firebaseConfig = {
+  apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
+  databaseURL: "https://royrohit-294fc-default-rtdb.firebaseio.com",
+  projectId: "royrohit-294fc"
+};
+firebase.initializeApp(firebaseConfig);
+
+const db=firebase.database();
+const list=document.getElementById("list");
+
+db.ref("requests").on("child_added",s=>{
+  const r=s.val();
+  if(r.status!=="pending") return;
+
+  const div=document.createElement("div");
+  div.className="card";
+  div.innerHTML=`
+    <b>${r.name}</b>
+    <input id="room_${s.key}" placeholder="Room name">
+    <button onclick="approve('${s.key}')">Approve</button>
+    <button onclick="reject('${s.key}')">Reject</button>
+  `;
+  list.appendChild(div);
+});
+
+function approve(id){
+  const room=document.getElementById("room_"+id).value.trim();
+  if(!room) return alert("Enter room name");
+  db.ref("requests/"+id).update({status:"approved",room});
+}
+
+function reject(id){
+  db.ref("requests/"+id).update({status:"rejected"});
+}
+</script>
+
+</body>
+</html>
