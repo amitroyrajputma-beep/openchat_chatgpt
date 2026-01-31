@@ -13,10 +13,14 @@
 </head>
 <body>
 <div class="box">
-  <h2>Enter Chat</h2>
+  <h2>Login</h2>
   <input id="login_user" placeholder="Username">
   <input id="login_pass" type="password" placeholder="Password">
-  <button onclick="login()">Enter</button>
+  <button onclick="login()">Login</button>
+  <h3>or Register</h3>
+  <input id="reg_user" placeholder="Username">
+  <input id="reg_pass" type="password" placeholder="Password">
+  <button onclick="register()">Register</button>
   <p id="msg"></p>
 </div>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -30,31 +34,42 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
+// Auto-login if credentials are saved
+if (localStorage.getItem("user") && localStorage.getItem("pass")) {
+  window.location.href = "chat.html";
+}
+
 function login() {
   var user = document.getElementById("login_user").value.trim();
   var pass = document.getElementById("login_pass").value;
   if (!user || !pass) return showMsg("Enter username and password");
   firebase.database().ref("users/"+user).once("value", snap => {
     var d = snap.val();
-    if (!d) {
-      // Register new user
-      firebase.database().ref("users/"+user).set({
-        password: pass,
-        reg_time: Date.now()
-      }, () => {
-        localStorage.setItem("user", user);
-        localStorage.setItem("pass", pass);
-        window.location.href = "chat.html";
-      });
-    } else if (d.password !== pass) {
-      showMsg("Wrong password");
-    } else {
-      localStorage.setItem("user", user);
-      localStorage.setItem("pass", pass);
-      window.location.href = "chat.html";
-    }
+    if (!d) return showMsg("User not found. Please register.");
+    if (d.password !== pass) return showMsg("Wrong password");
+    if (d.blocked) return showMsg("You are blocked by admin");
+    localStorage.setItem("user", user);
+    localStorage.setItem("pass", pass);
+    window.location.href = "chat.html";
   });
 }
+
+function register() {
+  var user = document.getElementById("reg_user").value.trim();
+  var pass = document.getElementById("reg_pass").value;
+  if (!user || !pass) return showMsg("Enter username and password");
+  firebase.database().ref("users/"+user).once("value", snap => {
+    if (snap.exists()) return showMsg("Username already exists");
+    firebase.database().ref("users/"+user).set({
+      password: pass,
+      reg_time: Date.now(),
+      blocked: false
+    }, () => {
+      showMsg("Registered! You can now login.");
+    });
+  });
+}
+
 function showMsg(m) { document.getElementById("msg").innerText = m; }
 </script>
 </body>
