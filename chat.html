@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat Room</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://meet.jit.si/external_api.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+</head>
+<body>
+
+<h3 id="roomTitle"></h3>
+
+<div id="adminControls" style="display:none">
+  <button onclick="muteAll()">Mute All</button>
+  <button onclick="lockRoom()">Lock</button>
+  <button onclick="unlockRoom()">Unlock</button>
+  <button onclick="endMeeting()">End</button>
+</div>
+
+<div id="jitsi"></div>
+
+<div class="chatBox">
+  <div id="messages"></div>
+  <input id="msg" placeholder="Type message">
+  <button onclick="send()">Send</button>
+</div>
+
+<script>
+const p=new URLSearchParams(location.search);
+const name=p.get("name");
+const room=p.get("room");
+const id=p.get("id");
+
+roomTitle.innerText="Room: "+room;
+
+var firebaseConfig = {
+  apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
+  databaseURL: "https://royrohit-294fc-default-rtdb.firebaseio.com",
+  projectId: "royrohit-294fc"
+};
+firebase.initializeApp(firebaseConfig);
+
+const db=firebase.database();
+const ref=db.ref("rooms/"+room);
+
+/* ADMIN ASSIGN */
+ref.child("admin").once("value",s=>{
+  if(!s.exists()){
+    ref.child("admin").set(name);
+    adminControls.style.display="block";
+  }else if(s.val()===name){
+    adminControls.style.display="block";
+  }
+});
+
+/* CHAT */
+ref.child("messages").on("child_added",s=>{
+  messages.innerHTML+=`<div><b>${s.val().name}:</b> ${s.val().text}</div>`;
+  messages.scrollTop=messages.scrollHeight;
+});
+
+function send(){
+  if(!msg.value) return;
+  ref.child("messages").push({name,text:msg.value});
+  msg.value="";
+}
+
+/* VIDEO */
+const api=new JitsiMeetExternalAPI("meet.jit.si",{
+  roomName:room,
+  parentNode:document.querySelector("#jitsi"),
+  userInfo:{displayName:name},
+  configOverwrite:{prejoinPageEnabled:false}
+});
+
+function muteAll(){api.executeCommand("muteEveryone");}
+function lockRoom(){api.executeCommand("toggleLobby",true);}
+function unlockRoom(){api.executeCommand("toggleLobby",false);}
+function endMeeting(){api.executeCommand("hangup"); ref.remove();}
+</script>
+
+</body>
+</html>
