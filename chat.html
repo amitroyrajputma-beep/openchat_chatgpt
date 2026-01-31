@@ -13,18 +13,9 @@
     .file { color:#007bff; text-decoration:underline; cursor:pointer }
     #audioRing { display:none; }
     #msgBar { position:fixed; bottom:0; left:0; width:100%; background:#fff; padding:10px; box-shadow:0 -2px 8px #ccc; }
-    #msgBar input[type=text] { width:60%; padding:10px; }
+    #msgBar textarea { width:60%; padding:10px; resize:vertical; min-height:40px; max-height:120px; }
     #msgBar button, #msgBar input[type=file] { padding:10px; margin-left:5px; }
     #createRoomBar { margin:10px 0; }
-    #callModal {
-      display:none; position:fixed; left:0; top:0; width:100vw; height:100vh;
-      background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;
-    }
-    #callModalContent {
-      background:#fff; padding:30px; border-radius:10px; text-align:center;
-      box-shadow:0 2px 12px #222;
-    }
-    #callModal button { margin:10px 20px; padding:10px 30px; font-size:18px; }
   </style>
 </head>
 <body>
@@ -43,7 +34,7 @@
 </div>
 <div id="chat"></div>
 <div id="msgBar">
-  <input id="msg" type="text" placeholder="Message">
+  <textarea id="msg" placeholder="Message (Shift+Enter for new line)"></textarea>
   <button onclick="send()">Send</button>
   <input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
 </div>
@@ -51,8 +42,8 @@
 <audio id="audioRing" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto" loop></audio>
 
 <!-- Incoming Call Modal -->
-<div id="callModal">
-  <div id="callModalContent">
+<div id="callModal" style="display:none; position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+  <div id="callModalContent" style="background:#fff; padding:30px; border-radius:10px; text-align:center; box-shadow:0 2px 12px #222;">
     <h2>Incoming Audio Call</h2>
     <p id="callFrom"></p>
     <button onclick="acceptCall()">Accept</button>
@@ -132,7 +123,7 @@ function loadChat() {
   firebase.database().ref("chats/"+room).on("child_added", s => {
     let v = s.val();
     let html = `<div class="msg"><span class="msg-user">${v.name || "Anon"}:</span> `;
-    if (v.msg) html += v.msg;
+    if (v.msg) html += v.msg.replace(/\n/g, "<br>");
     if (v.file) html += `<a class="file" href="${v.file}" target="_blank">[File]</a>`;
     if (v.photo) html += `<br><img src="${v.photo}" style="max-width:120px">`;
     html += "</div>";
@@ -151,6 +142,12 @@ function send() {
   firebase.database().ref("chats/"+room).push({ msg:text, name: user });
   document.getElementById("msg").value = "";
 }
+document.getElementById("msg").addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
 function uploadFile() {
   document.getElementById("fileInput").value = ""; // reset so same file can be uploaded again
   document.getElementById("fileInput").click();
