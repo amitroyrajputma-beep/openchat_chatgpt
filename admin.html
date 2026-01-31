@@ -5,17 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: Arial; background:#111; color:#fff; padding:20px }
-    .card { background:#222; padding:15px; margin-bottom:10px; border-radius:8px }
-    input, button, select { padding:8px; margin-top:5px }
-    button { border:none; cursor:pointer }
-    .ok { background:#28a745; color:#fff }
-    .no { background:#dc3545; color:#fff }
-    .block { background:#ffc107; color:#222 }
-    .del { background:#dc3545; color:#fff }
-    .room { background:#007bff; color:#fff }
-    .userlist, .roomlist { margin-bottom:30px }
     table { width:100%; border-collapse:collapse; }
     th, td { border:1px solid #444; padding:6px; }
+    button { padding:6px 12px; margin:2px; border:none; cursor:pointer }
+    .block { background:#ffc107; color:#222 }
+    .del { background:#dc3545; color:#fff }
   </style>
 </head>
 <body>
@@ -27,18 +21,14 @@
 </div>
 <div id="panel" style="display:none">
   <h2>Admin Panel</h2>
-  <div class="userlist">
-    <h3>Users</h3>
-    <table id="usersTable">
-      <tr><th>Username</th><th>Status</th><th>Approved</th><th>Blocked</th><th>Actions</th></tr>
-    </table>
-  </div>
-  <div class="roomlist">
-    <h3>Rooms</h3>
-    <table id="roomsTable">
-      <tr><th>Room</th><th>Actions</th></tr>
-    </table>
-  </div>
+  <h3>Users</h3>
+  <table id="usersTable">
+    <tr><th>Username</th><th>Password</th><th>Registered</th><th>Blocked</th><th>Actions</th></tr>
+  </table>
+  <h3>Rooms</h3>
+  <table id="roomsTable">
+    <tr><th>Room</th><th>Actions</th></tr>
+  </table>
 </div>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -67,16 +57,15 @@ function loadPanel() {
   // Users
   firebase.database().ref("users").on("value", snap => {
     var t = document.getElementById("usersTable");
-    t.innerHTML = '<tr><th>Username</th><th>Status</th><th>Approved</th><th>Blocked</th><th>Actions</th></tr>';
+    t.innerHTML = '<tr><th>Username</th><th>Password</th><th>Registered</th><th>Blocked</th><th>Actions</th></tr>';
     snap.forEach(c => {
       var d = c.val();
       var tr = document.createElement("tr");
       tr.innerHTML = `<td>${c.key}</td>
+        <td>${d.password || ""}</td>
         <td>${d.reg_time ? new Date(d.reg_time).toLocaleString() : ""}</td>
-        <td>${d.approved ? "✅" : "❌"}</td>
         <td>${d.blocked ? "🚫" : ""}</td>
         <td>
-          <button class="ok" onclick="approveUser('${c.key}')">Approve</button>
           <button class="block" onclick="blockUser('${c.key}',${!d.blocked})">${d.blocked ? "Unblock" : "Block"}</button>
         </td>`;
       t.appendChild(tr);
@@ -93,10 +82,6 @@ function loadPanel() {
       t.appendChild(tr);
     });
   });
-}
-
-function approveUser(user) {
-  firebase.database().ref("users/"+user).update({ approved:true, blocked:false });
 }
 function blockUser(user, block) {
   firebase.database().ref("users/"+user).update({ blocked:block });
