@@ -46,7 +46,8 @@
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
   databaseURL: "https://royrohit-294fc-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "royrohit-294fc"
+  projectId: "royrohit-294fc",
+  storageBucket: "royrohit-294fc.appspot.com"
 };
 firebase.initializeApp(firebaseConfig);
 
@@ -117,6 +118,7 @@ function send() {
   document.getElementById("msg").value = "";
 }
 function uploadFile() {
+  document.getElementById("fileInput").value = ""; // reset so same file can be uploaded again
   document.getElementById("fileInput").click();
 }
 document.getElementById("fileInput").onchange = function(e) {
@@ -124,10 +126,10 @@ document.getElementById("fileInput").onchange = function(e) {
   if (!file) return;
   let ref = firebase.storage().ref("uploads/"+room+"/"+Date.now()+"_"+file.name);
   ref.put(file).then(snap => {
-    ref.getDownloadURL().then(url => {
+    ref.ref.getDownloadURL().then(url => {
       firebase.database().ref("chats/"+room).push({ file:url, name:user });
     });
-  });
+  }).catch(err => alert("Upload failed: " + err.message));
 };
 function capturePhoto() {
   navigator.mediaDevices.getUserMedia({ video:true }).then(stream => {
@@ -144,13 +146,13 @@ function capturePhoto() {
       canvas.toBlob(blob => {
         let ref = firebase.storage().ref("uploads/"+room+"/photo_"+Date.now()+".png");
         ref.put(blob).then(snap => {
-          ref.getDownloadURL().then(url => {
+          ref.ref.getDownloadURL().then(url => {
             firebase.database().ref("chats/"+room).push({ photo:url, name:user });
           });
         });
       }, "image/png");
     };
-  });
+  }).catch(err => alert("Camera error: " + err.message));
 }
 function startAudioCall() {
   firebase.database().ref("chats/"+room).push({ call:true, name:user });
