@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Join Chat</title>
+  <title>Login / Register</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: Arial; background:#f4f4f4; padding:40px }
@@ -58,15 +58,19 @@ function register() {
   var user = document.getElementById("reg_user").value.trim();
   var pass = document.getElementById("reg_pass").value;
   if (!user || !pass) return showMsg("Enter username and password");
+  // Check for unique username
   firebase.database().ref("users/"+user).once("value", snap => {
-    if (snap.exists()) return showMsg("Username already exists");
-    firebase.database().ref("users/"+user).set({
-      password: pass,
-      reg_time: Date.now(),
-      blocked: false
-    }, () => {
-      showMsg("Registered! You can now login.");
-    });
+    if (snap.exists()) {
+      showMsg("Username already exists. Please choose another.");
+    } else {
+      firebase.database().ref("users/"+user).set({
+        password: pass,
+        reg_time: Date.now(),
+        blocked: false
+      }, () => {
+        showMsg("Registered! You can now login.");
+      });
+    }
   });
 }
 
