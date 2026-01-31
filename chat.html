@@ -308,6 +308,7 @@ function capturePhoto() {
 function callUser() {
   let toUser = document.getElementById("userSelect").value;
   if (!toUser) return alert("Select a user to call.");
+  // Generate a unique Jitsi room name for every call
   let jitsiRoom = "OpenChat_" + user + "_to_" + toUser + "_" + Date.now();
   firebase.database().ref("chats/"+room).push({
     one2oneCall: true,
