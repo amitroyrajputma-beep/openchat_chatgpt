@@ -16,6 +16,15 @@
     #msgBar input[type=text] { width:60%; padding:10px; }
     #msgBar button, #msgBar input[type=file] { padding:10px; margin-left:5px; }
     #createRoomBar { margin:10px 0; }
+    #callModal {
+      display:none; position:fixed; left:0; top:0; width:100vw; height:100vh;
+      background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;
+    }
+    #callModalContent {
+      background:#fff; padding:30px; border-radius:10px; text-align:center;
+      box-shadow:0 2px 12px #222;
+    }
+    #callModal button { margin:10px 20px; padding:10px 30px; font-size:18px; }
   </style>
 </head>
 <body>
@@ -40,6 +49,17 @@
 </div>
 <canvas id="photoCanvas" style="display:none"></canvas>
 <audio id="audioRing" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto" loop></audio>
+
+<!-- Incoming Call Modal -->
+<div id="callModal">
+  <div id="callModalContent">
+    <h2>Incoming Audio Call</h2>
+    <p id="callFrom"></p>
+    <button onclick="acceptCall()">Accept</button>
+    <button onclick="declineCall()">Decline</button>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
@@ -68,6 +88,7 @@ let room = "general";
 let chatBox = document.getElementById("chat");
 let audioRing = document.getElementById("audioRing");
 let lastCallId = null; // Track last call event
+let incomingCallRoom = null;
 
 // Room list
 function loadRooms() {
@@ -120,7 +141,7 @@ function loadChat() {
     // Popup/ringtone for incoming call (only once per call event, not for caller)
     if (v.call && v.name !== user && s.key !== lastCallId) {
       lastCallId = s.key;
-      popupCall(v.name);
+      popupCall(v.name, s.key);
     }
   });
 }
@@ -168,20 +189,29 @@ function capturePhoto() {
   }).catch(err => alert("Camera error: " + err.message));
 }
 function startAudioCall() {
-  firebase.database().ref("chats/"+room).push({ call:true, name:user });
-  window.open("call.html?room="+encodeURIComponent(room), "_blank");
+  // Use a unique call id (timestamp) to avoid popup confusion
+  let callId = Date.now();
+  firebase.database().ref("chats/"+room).push({ call:true, name:user, callId: callId });
+  window.open("call.html?room="+encodeURIComponent(room)+"&callId="+callId, "_blank");
 }
-function popupCall(caller) {
+function popupCall(caller, callId) {
   // Play ringtone in a loop
   audioRing.currentTime = 0;
   audioRing.play();
-  let stopRinging = () => { audioRing.pause(); audioRing.currentTime = 0; };
-  setTimeout(() => { // In case alert is blocked, stop after 30s
-    stopRinging();
-  }, 30000);
-  alert("Incoming audio call from " + caller + "!\nClick OK to join.");
-  stopRinging();
-  window.open("call.html?room="+encodeURIComponent(room), "_blank");
+  document.getElementById("callFrom").innerText = "From: " + caller;
+  document.getElementById("callModal").style.display = "flex";
+  incomingCallRoom = room;
+}
+function acceptCall() {
+  audioRing.pause();
+  audioRing.currentTime = 0;
+  document.getElementById("callModal").style.display = "none";
+  window.open("call.html?room="+encodeURIComponent(incomingCallRoom), "_blank");
+}
+function declineCall() {
+  audioRing.pause();
+  audioRing.currentTime = 0;
+  document.getElementById("callModal").style.display = "none";
 }
 function logout() {
   localStorage.clear();
