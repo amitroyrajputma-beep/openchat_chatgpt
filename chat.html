@@ -181,7 +181,7 @@
 </div>
 <div id="chat"></div>
 <div id="msgBar">
-  <textarea id="msg" placeholder="Type your message... (Shift+Enter for new line)"></textarea>
+  <textarea id="msg" placeholder="Type your message..."></textarea>
   <button onclick="send()">Send</button>
   <input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
 </div>
@@ -284,12 +284,8 @@ function send() {
   firebase.database().ref("chats/"+room).push({ msg:text, name: user });
   document.getElementById("msg").value = "";
 }
-document.getElementById("msg").addEventListener("keydown", function(e) {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    send();
-  }
-});
+// No Enter-to-send: users tap Send button for all devices
+
 function uploadFile() {
   document.getElementById("fileInput").value = ""; // reset so same file can be uploaded again
   document.getElementById("fileInput").click();
