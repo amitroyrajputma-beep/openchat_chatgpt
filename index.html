@@ -8,7 +8,6 @@
     .box { max-width:500px; margin:auto; background:#fff; padding:20px; border-radius:8px }
     input, button { width:100%; padding:12px; margin-top:10px }
     button { background:#007bff; color:#fff; border:none; cursor:pointer }
-    #goChat { background:#28a745; margin-top:20px; display:none }
     #msg { margin-top:10px }
   </style>
 </head>
@@ -19,7 +18,6 @@
   <input id="name" placeholder="Enter your name">
   <button onclick="requestAccess()">Request Access</button>
   <p id="msg"></p>
-  <button id="goChat" onclick="goToChat()">Go to Chat Room</button>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -32,12 +30,14 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-let approvedRoom = null;
-let approvedName = null;
+let pollRef = null;
 
 function requestAccess() {
   var name = document.getElementById("name").value;
   if (!name) return alert("Enter name");
+
+  // Prevent duplicate polling
+  if (pollRef) pollRef.off();
 
   var ref = firebase.database().ref("requests").push({
     name: name,
@@ -45,30 +45,25 @@ function requestAccess() {
     time: Date.now()
   });
   document.getElementById("msg").innerHTML = "✅ Request sent. Wait for approval.";
-  document.getElementById("goChat").style.display = "none";
+
   pollApproval(ref.key, name);
 }
 
 function pollApproval(key, name) {
-  firebase.database().ref("requests/" + key).on("value", snap => {
+  pollRef = firebase.database().ref("requests/" + key);
+  pollRef.on("value", snap => {
     var d = snap.val();
     if (!d) return;
     if (d.status === "approved") {
-      approvedRoom = d.room || "general";
-      approvedName = name;
-      document.getElementById("msg").innerHTML = "✅ Approved! Room: <b>" + approvedRoom + "</b>";
-      document.getElementById("goChat").style.display = "";
+      document.getElementById("msg").innerHTML = "✅ Approved! Redirecting to chat room: <b>" + (d.room || "general") + "</b> ...";
+      setTimeout(function() {
+        window.location.href = "chat.html?room=" + encodeURIComponent(d.room || "general") + "&name=" + encodeURIComponent(name);
+      }, 1500);
     } else if (d.status === "rejected") {
       document.getElementById("msg").innerHTML = "❌ Request rejected.";
-      document.getElementById("goChat").style.display = "none";
+      pollRef.off();
     }
   });
-}
-
-function goToChat() {
-  if (approvedRoom && approvedName) {
-    window.location.href = "chat.html?room=" + encodeURIComponent(approvedRoom) + "&name=" + encodeURIComponent(approvedName);
-  }
 }
 </script>
 
