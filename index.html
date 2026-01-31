@@ -1,55 +1,55 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Open Chat – Join</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-</head>
-<body>
-
-<div class="card">
-  <h2>Request to Join Chat</h2>
-  <input id="name" placeholder="Enter your name">
-  <button onclick="requestJoin()">Request Access</button>
-  <p id="status"></p>
-</div>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
+/* ===== FIREBASE CONFIG ===== */
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
-  databaseURL: "https://royrohit-294fc-default-rtdb.firebaseio.com",
+  databaseURL: "https://royrohit-294fc-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "royrohit-294fc"
 };
-firebase.initializeApp(firebaseConfig);
 
-let reqId;
+/* ===== PREVENT DOUBLE INIT ===== */
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 
-function requestJoin(){
-  const name=document.getElementById("name").value.trim();
-  if(!name) return alert("Enter your name");
+const db = firebase.database();
+let reqId = null;
 
-  reqId=firebase.database().ref("requests").push({
-    name:name,
-    status:"pending",
-    room:"",
-    time:Date.now()
-  }).key;
+function requestJoin() {
+  const name = document.getElementById("name").value.trim();
+  if (!name) {
+    alert("Please enter your name");
+    return;
+  }
 
-  status.innerText="⏳ Waiting for admin approval...";
+  db.ref("requests").push({
+    name: name,
+    status: "pending",
+    room: "",
+    time: Date.now()
+  }).then(ref => {
+    reqId = ref.key;
+    document.getElementById("status").innerText =
+      "⏳ Waiting for admin approval...";
+  }).catch(err => {
+    alert("Firebase error: " + err.message);
+  });
 
-  firebase.database().ref("requests/"+reqId).on("value",s=>{
-    if(!s.exists()) return;
-    const d=s.val();
-    if(d.status==="approved"){
-      location.href=`chat.html?name=${d.name}&room=${d.room}&id=${reqId}`;
+  db.ref("requests").child(reqId).on("value", snap => {
+    if (!snap.exists()) return;
+    const data = snap.val();
+
+    if (data.status === "approved") {
+      window.location.href =
+        `chat.html?name=${data.name}&room=${data.room}&id=${reqId}`;
     }
-    if(d.status==="rejected"){
-      status.innerText="❌ Request rejected";
+
+    if (data.status === "rejected") {
+      document.getElementById("status").innerText =
+        "❌ Request rejected by admin";
     }
   });
 }
 </script>
-
-</body>
-</html>
