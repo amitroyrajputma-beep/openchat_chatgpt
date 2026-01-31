@@ -12,12 +12,11 @@ function getQueryParam(name) {
   let url = new URL(window.location.href);
   return url.searchParams.get(name);
 }
-let room = getQueryParam("room") || "general";
-let uniqueRoom = "OpenChat_" + room + "_" + Date.now(); // Unique room per call
+let room = getQueryParam("room") || "OpenChat_Default_" + Date.now();
 let user = localStorage.getItem("user") || "Guest";
 const domain = "meet.jit.si";
 const options = {
-    roomName: uniqueRoom,
+    roomName: room,
     width: "100%",
     height: 600,
     parentNode: document.getElementById("jitsi"),
