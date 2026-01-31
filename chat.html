@@ -6,19 +6,24 @@
   <style>
     body { font-family: Arial; padding:20px }
     #chat { border:1px solid #ccc; height:300px; overflow:auto; padding:10px }
-    input, button { width:100%; padding:10px; margin-top:10px }
+    input, button, select { width:100%; padding:10px; margin-top:10px }
+    #roomTitle { margin-top:20px }
+    .msg-user { font-weight:bold }
+    .msg { margin-bottom:5px }
   </style>
 </head>
 <body>
 
-<h3>Chat Room</h3>
+<select id="roomSelect"></select>
+<button onclick="joinRoom()">Join Room</button>
+<button onclick="startVideo()">Video Call</button>
+<h3 id="roomTitle">Chat Room</h3>
 <div id="chat"></div>
 <input id="msg" placeholder="Message">
 <button onclick="send()">Send</button>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
 <script>
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
@@ -27,16 +32,58 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-var room = "general"; // simple demo
-var chatBox = document.getElementById("chat");
+function getQueryParam(name) {
+  let url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+var room = getQueryParam("room") || "general";
+var userName = getQueryParam("name") || "Anonymous";
+document.getElementById("roomTitle").innerText = "Room: " + room;
 
-firebase.database().ref("chats/"+room).on("child_added", s => {
-  chatBox.innerHTML += "<div>"+s.val().msg+"</div>";
+// Populate room list from approved requests
+firebase.database().ref("requests").on("value", snap => {
+  let rooms = new Set();
+  snap.forEach(c => {
+    let d = c.val();
+    if (d.status === "approved" && d.room) rooms.add(d.room);
+  });
+  let sel = document.getElementById("roomSelect");
+  sel.innerHTML = "";
+  rooms.forEach(r => {
+    let opt = document.createElement("option");
+    opt.value = r;
+    opt.innerText = r;
+    sel.appendChild(opt);
+  });
+  // Set current room as selected if present
+  sel.value = room;
 });
 
+// Join selected room
+function joinRoom() {
+  var sel = document.getElementById("roomSelect");
+  var selectedRoom = sel.value;
+  window.location.href = "chat.html?room=" + encodeURIComponent(selectedRoom) + "&name=" + encodeURIComponent(userName);
+}
+
+// Video call (using Jitsi Meet)
+function startVideo() {
+  let url = "https://meet.jit.si/" + encodeURIComponent(room);
+  window.open(url, "_blank");
+}
+
+// Chat logic
+var chatBox = document.getElementById("chat");
+chatBox.innerHTML = "";
+firebase.database().ref("chats/"+room).on("child_added", s => {
+  let v = s.val();
+  chatBox.innerHTML += `<div class="msg"><span class="msg-user">${v.name || "Anon"}:</span> ${v.msg}</div>`;
+  chatBox.scrollTop = chatBox.scrollHeight;
+});
 function send() {
   var text = document.getElementById("msg").value;
-  firebase.database().ref("chats/"+room).push({ msg:text });
+  if (!text.trim()) return;
+  firebase.database().ref("chats/"+room).push({ msg:text, name: userName });
   document.getElementById("msg").value = "";
 }
 </script>
