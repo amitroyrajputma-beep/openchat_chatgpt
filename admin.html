@@ -5,24 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: Arial; background:#111; color:#fff; padding:20px }
-    .card {
-      background:#222; padding:15px; margin-bottom:10px;
-      border-radius:8px;
-    }
-    input { padding:6px; margin-top:5px; width:100% }
-    button {
-      margin-top:8px; padding:8px;
-      border:none; border-radius:5px; cursor:pointer
-    }
-    .approve { background:#28a745; color:#fff }
-    .reject { background:#dc3545; color:#fff }
+    .card { background:#222; padding:15px; margin-bottom:10px; border-radius:8px }
+    input { width:100%; padding:8px; margin-top:5px }
+    button { padding:8px; margin-top:8px; border:none; cursor:pointer }
+    .ok { background:#28a745; color:#fff }
+    .no { background:#dc3545; color:#fff }
   </style>
 </head>
 <body>
 
-<h2>👑 Admin Approval Panel</h2>
-
-<div id="requests"></div>
+<h2>Admin Approval Panel</h2>
+<div id="list"></div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -33,43 +26,36 @@ var firebaseConfig = {
   databaseURL: "https://royrohit-294fc-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "royrohit-294fc"
 };
+firebase.initializeApp(firebaseConfig);
 
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
+var box = document.getElementById("list");
 
-const db = firebase.database();
-const box = document.getElementById("requests");
-
-db.ref("requests").on("value", snap => {
+firebase.database().ref("requests").on("value", snap => {
   box.innerHTML = "";
-  snap.forEach(child => {
-    const d = child.val();
+  snap.forEach(c => {
+    var d = c.val();
     if (d.status !== "pending") return;
 
-    const div = document.createElement("div");
+    var div = document.createElement("div");
     div.className = "card";
     div.innerHTML = `
-      <b>Name:</b> ${d.name}<br>
-      <input placeholder="Room name" id="room-${child.key}">
-      <button class="approve">Approve</button>
-      <button class="reject">Reject</button>
+      <b>${d.name}</b><br>
+      <input placeholder="Room name" id="r-${c.key}">
+      <button class="ok">Approve</button>
+      <button class="no">Reject</button>
     `;
 
-    div.querySelector(".approve").onclick = () => {
-      const room = document.getElementById(`room-${child.key}`).value;
+    div.querySelector(".ok").onclick = () => {
+      var room = document.getElementById("r-"+c.key).value;
       if (!room) return alert("Enter room name");
-
-      db.ref("requests/"+child.key).update({
+      firebase.database().ref("requests/"+c.key).update({
         status:"approved",
         room:room
       });
     };
 
-    div.querySelector(".reject").onclick = () => {
-      db.ref("requests/"+child.key).update({
-        status:"rejected"
-      });
+    div.querySelector(".no").onclick = () => {
+      firebase.database().ref("requests/"+c.key).update({ status:"rejected" });
     };
 
     box.appendChild(div);
