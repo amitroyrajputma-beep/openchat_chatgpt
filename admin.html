@@ -14,12 +14,19 @@
 </head>
 <body>
 
-<h2>Admin Approval Panel</h2>
-<div id="list"></div>
+<div id="loginBox">
+  <h3>Admin Login</h3>
+  <input id="adminPass" type="password" placeholder="Enter admin password">
+  <button onclick="checkAdmin()">Login</button>
+  <p id="loginMsg"></p>
+</div>
+<div id="panel" style="display:none">
+  <h2>Admin Approval Panel</h2>
+  <div id="list"></div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
 <script>
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
@@ -28,39 +35,53 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-var box = document.getElementById("list");
+const ADMIN_PASSWORD = "yourStrongPassword"; // CHANGE THIS!
 
-firebase.database().ref("requests").on("value", snap => {
-  box.innerHTML = "";
-  snap.forEach(c => {
-    var d = c.val();
-    if (d.status !== "pending") return;
+function checkAdmin() {
+  var pass = document.getElementById("adminPass").value;
+  if (pass === ADMIN_PASSWORD) {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("panel").style.display = "";
+    loadPanel();
+  } else {
+    document.getElementById("loginMsg").innerText = "Wrong password!";
+  }
+}
 
-    var div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML = `
-      <b>${d.name}</b><br>
-      <input placeholder="Room name" id="r-${c.key}">
-      <button class="ok">Approve</button>
-      <button class="no">Reject</button>
-    `;
+function loadPanel() {
+  var box = document.getElementById("list");
+  firebase.database().ref("requests").on("value", snap => {
+    box.innerHTML = "";
+    snap.forEach(c => {
+      var d = c.val();
+      if (d.status !== "pending") return;
 
-    div.querySelector(".ok").onclick = () => {
-      var room = document.getElementById("r-"+c.key).value;
-      if (!room) return alert("Enter room name");
-      firebase.database().ref("requests/"+c.key).update({
-        status:"approved",
-        room:room
-      });
-    };
+      var div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <b>${d.name}</b><br>
+        <input placeholder="Room name" id="r-${c.key}">
+        <button class="ok">Approve</button>
+        <button class="no">Reject</button>
+      `;
 
-    div.querySelector(".no").onclick = () => {
-      firebase.database().ref("requests/"+c.key).update({ status:"rejected" });
-    };
+      div.querySelector(".ok").onclick = () => {
+        var room = document.getElementById("r-"+c.key).value;
+        if (!room) return alert("Enter room name");
+        firebase.database().ref("requests/"+c.key).update({
+          status:"approved",
+          room:room
+        });
+      };
 
-    box.appendChild(div);
+      div.querySelector(".no").onclick = () => {
+        firebase.database().ref("requests/"+c.key).update({ status:"rejected" });
+      };
+
+      box.appendChild(div);
+    });
   });
-});
+}
 </script>
 
 </body>
