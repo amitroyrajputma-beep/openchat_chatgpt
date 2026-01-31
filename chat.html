@@ -30,6 +30,7 @@
     <input id="newRoom" placeholder="New room name">
     <button onclick="createRoom()">Create Room</button>
   </div>
+  <button onclick="logout()" style="float:right;background:#dc3545;color:#fff;">Logout</button>
 </div>
 <div id="chat"></div>
 <div id="msgBar">
@@ -51,8 +52,18 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-let user = localStorage.getItem("user") || "Guest";
-let pass = localStorage.getItem("pass") || "";
+// Persistent login
+let user = localStorage.getItem("user");
+let pass = localStorage.getItem("pass");
+if (!user || !pass) window.location.href = "index.html";
+firebase.database().ref("users/"+user).once("value", snap => {
+  var d = snap.val();
+  if (!d || d.password !== pass || d.blocked) {
+    localStorage.clear();
+    window.location.href = "index.html";
+  }
+});
+
 let room = "general";
 let chatBox = document.getElementById("chat");
 let audioRing = document.getElementById("audioRing");
@@ -162,6 +173,10 @@ function popupCall(caller) {
   audioRing.play();
   alert("Incoming audio call from " + caller + "!\nClick OK to join.");
   window.open("call.html?room="+encodeURIComponent(room), "_blank");
+}
+function logout() {
+  localStorage.clear();
+  window.location.href = "index.html";
 }
 
 // Create room if not exists
