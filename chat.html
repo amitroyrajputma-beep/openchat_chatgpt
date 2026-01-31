@@ -5,23 +5,118 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: Arial; margin:0; padding:0; background:#f4f4f4 }
+    #topbar {
+      background:#fff;
+      padding:10px;
+      position:sticky;
+      top:0;
+      z-index:10;
+      box-shadow:0 2px 8px #eee;
+    }
+    .room-row, .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    #roomTitle {
+      font-size:18px;
+      font-weight:bold;
+      flex:1;
+    }
+    #roomSelect, #newRoom {
+      flex:1 1 120px;
+      min-width:100px;
+      max-width:180px;
+    }
+    .action-row button, .room-row button, .logout-btn {
+      flex:1 1 80px;
+      min-width:80px;
+      padding:10px;
+      font-size:16px;
+    }
+    .logout-btn {
+      background:#dc3545;
+      color:#fff;
+      width:100%;
+      margin-top:8px;
+    }
     #chat { margin:0 auto; max-width:600px; padding:10px 0 80px 0; }
     .msg-user { font-weight:bold }
     .msg { margin-bottom:10px; background:#fff; padding:10px; border-radius:8px; box-shadow:0 1px 2px #ccc; }
+    .file { color:#007bff; text-decoration:underline; cursor:pointer }
+    #audioRing { display:none; }
     #msgBar { position:fixed; bottom:0; left:0; width:100%; background:#fff; padding:10px; box-shadow:0 -2px 8px #ccc; }
     #msgBar textarea { width:60%; padding:10px; resize:vertical; min-height:40px; max-height:120px; }
-    #msgBar button { padding:10px; margin-left:5px; }
+    #msgBar button, #msgBar input[type=file] { padding:10px; margin-left:5px; }
+    @media (max-width: 600px) {
+      #topbar {
+        padding:6px;
+      }
+      .room-row, .action-row {
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+      #roomTitle {
+        font-size:16px;
+      }
+      .action-row button, .room-row button, .logout-btn {
+        font-size:15px;
+        min-width:unset;
+        width:100%;
+      }
+      #roomSelect, #newRoom {
+        width:100%;
+        max-width:unset;
+      }
+      #msgBar textarea { width:100%; }
+    }
   </style>
 </head>
 <body>
+<div id="topbar">
+  <div class="room-row">
+    <span id="roomTitle">Room: general</span>
+  </div>
+  <div class="room-row">
+    <select id="roomSelect"></select>
+    <button onclick="joinRoom()">Join</button>
+  </div>
+  <div class="action-row">
+    <button onclick="startAudioCall()">Audio Call</button>
+    <button onclick="uploadFile()">Upload</button>
+    <button onclick="capturePhoto()">Photo</button>
+  </div>
+  <div class="room-row">
+    <input id="newRoom" placeholder="New room name">
+    <button onclick="createRoom()">Create</button>
+  </div>
+  <button onclick="logout()" class="logout-btn">Logout</button>
+</div>
 <div id="chat"></div>
 <div id="msgBar">
   <textarea id="msg" placeholder="Type your message... (Shift+Enter for new line)"></textarea>
   <button onclick="send()">Send</button>
+  <input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+</div>
+<canvas id="photoCanvas" style="display:none"></canvas>
+<audio id="audioRing" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto" loop></audio>
+
+<!-- Incoming Call Modal -->
+<div id="callModal" style="display:none; position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+  <div id="callModalContent" style="background:#fff; padding:30px; border-radius:10px; text-align:center; box-shadow:0 2px 12px #222;">
+    <h2>Incoming Audio Call</h2>
+    <p id="callFrom"></p>
+    <button onclick="acceptCall()">Accept</button>
+    <button onclick="declineCall()">Decline</button>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 <script>
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
@@ -31,11 +126,60 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-let user = localStorage.getItem("user") || "Guest";
+// Persistent login
+let user = localStorage.getItem("user");
+let pass = localStorage.getItem("pass");
+if (!user || !pass) window.location.href = "index.html";
+firebase.database().ref("users/"+user).once("value", snap => {
+  var d = snap.val();
+  if (!d || d.password !== pass || d.blocked) {
+    localStorage.clear();
+    window.location.href = "index.html";
+  }
+});
+
 let room = "general";
 let chatBox = document.getElementById("chat");
+let audioRing = document.getElementById("audioRing");
+let lastCallId = null; // Track last call event
+let incomingCallRoom = null;
 
-// Listen for new messages
+// Room list
+function loadRooms() {
+  firebase.database().ref("rooms").on("value", snap => {
+    let sel = document.getElementById("roomSelect");
+    sel.innerHTML = "";
+    snap.forEach(c => {
+      let opt = document.createElement("option");
+      opt.value = c.key;
+      opt.innerText = c.key;
+      sel.appendChild(opt);
+    });
+    sel.value = room;
+    document.getElementById("roomTitle").innerText = "Room: " + room;
+  });
+}
+loadRooms();
+
+document.getElementById("roomSelect").onchange = function() {
+  joinRoom();
+};
+
+function joinRoom() {
+  room = document.getElementById("roomSelect").value;
+  document.getElementById("roomTitle").innerText = "Room: " + room;
+  loadChat();
+}
+function createRoom() {
+  let r = document.getElementById("newRoom").value.trim();
+  if (!r) return alert("Enter room name");
+  firebase.database().ref("rooms/"+r).set(true, () => {
+    document.getElementById("newRoom").value = "";
+    room = r;
+    loadRooms();
+    loadChat();
+  });
+}
 function loadChat() {
   chatBox.innerHTML = "";
   firebase.database().ref("chats/"+room).off();
@@ -43,28 +187,100 @@ function loadChat() {
     let v = s.val();
     let html = `<div class="msg"><span class="msg-user">${v.name || "Anon"}:</span> `;
     if (v.msg) html += v.msg.replace(/\n/g, "<br>");
+    if (v.file) html += `<a class="file" href="${v.file}" target="_blank">[File]</a>`;
+    if (v.photo) html += `<br><img src="${v.photo}" style="max-width:120px">`;
     html += "</div>";
     chatBox.innerHTML += html;
     window.scrollTo(0, document.body.scrollHeight);
+    // Popup/ringtone for incoming call (only once per call event, not for caller)
+    if (v.call && v.name !== user && s.key !== lastCallId) {
+      lastCallId = s.key;
+      popupCall(v.name, s.key);
+    }
   });
 }
-loadChat();
-
-// Send message
 function send() {
   var text = document.getElementById("msg").value;
   if (!text.trim()) return;
   firebase.database().ref("chats/"+room).push({ msg:text, name: user });
   document.getElementById("msg").value = "";
 }
-
-// Enter = send, Shift+Enter = newline
 document.getElementById("msg").addEventListener("keydown", function(e) {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     send();
   }
 });
+function uploadFile() {
+  document.getElementById("fileInput").value = ""; // reset so same file can be uploaded again
+  document.getElementById("fileInput").click();
+}
+document.getElementById("fileInput").onchange = function(e) {
+  let file = e.target.files[0];
+  if (!file) return;
+  let ref = firebase.storage().ref("uploads/"+room+"/"+Date.now()+"_"+file.name);
+  ref.put(file).then(snap => {
+    ref.ref.getDownloadURL().then(url => {
+      firebase.database().ref("chats/"+room).push({ file:url, name:user });
+    });
+  }).catch(err => alert("Upload failed: " + err.message));
+};
+function capturePhoto() {
+  navigator.mediaDevices.getUserMedia({ video:true }).then(stream => {
+    let video = document.createElement("video");
+    video.srcObject = stream;
+    video.play();
+    video.onloadedmetadata = () => {
+      let canvas = document.getElementById("photoCanvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      let ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0);
+      stream.getTracks().forEach(track => track.stop());
+      canvas.toBlob(blob => {
+        let ref = firebase.storage().ref("uploads/"+room+"/photo_"+Date.now()+".png");
+        ref.put(blob).then(snap => {
+          ref.ref.getDownloadURL().then(url => {
+            firebase.database().ref("chats/"+room).push({ photo:url, name:user });
+          });
+        });
+      }, "image/png");
+    };
+  }).catch(err => alert("Camera error: " + err.message));
+}
+function startAudioCall() {
+  // Use a unique call id (timestamp) to avoid popup confusion
+  let callId = Date.now();
+  firebase.database().ref("chats/"+room).push({ call:true, name:user, callId: callId });
+  window.open("call.html?room="+encodeURIComponent(room)+"&callId="+callId, "_blank");
+}
+function popupCall(caller, callId) {
+  // Play ringtone in a loop
+  audioRing.currentTime = 0;
+  audioRing.play();
+  document.getElementById("callFrom").innerText = "From: " + caller;
+  document.getElementById("callModal").style.display = "flex";
+  incomingCallRoom = room;
+}
+function acceptCall() {
+  audioRing.pause();
+  audioRing.currentTime = 0;
+  document.getElementById("callModal").style.display = "none";
+  window.open("call.html?room="+encodeURIComponent(incomingCallRoom), "_blank");
+}
+function declineCall() {
+  audioRing.pause();
+  audioRing.currentTime = 0;
+  document.getElementById("callModal").style.display = "none";
+}
+function logout() {
+  localStorage.clear();
+  window.location.href = "index.html";
+}
+
+// Create room if not exists
+firebase.database().ref("rooms/"+room).set(true);
+loadChat();
 </script>
 </body>
 </html>
