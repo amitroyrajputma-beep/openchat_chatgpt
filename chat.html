@@ -39,7 +39,7 @@
   <input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
 </div>
 <canvas id="photoCanvas" style="display:none"></canvas>
-<audio id="audioRing" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
+<audio id="audioRing" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto" loop></audio>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
@@ -67,6 +67,7 @@ firebase.database().ref("users/"+user).once("value", snap => {
 let room = "general";
 let chatBox = document.getElementById("chat");
 let audioRing = document.getElementById("audioRing");
+let lastCallId = null; // Track last call event
 
 // Room list
 function loadRooms() {
@@ -116,8 +117,9 @@ function loadChat() {
     html += "</div>";
     chatBox.innerHTML += html;
     window.scrollTo(0, document.body.scrollHeight);
-    // Popup/ringtone for incoming call
-    if (v.call && v.name !== user) {
+    // Popup/ringtone for incoming call (only once per call event, not for caller)
+    if (v.call && v.name !== user && s.key !== lastCallId) {
+      lastCallId = s.key;
       popupCall(v.name);
     }
   });
@@ -170,8 +172,15 @@ function startAudioCall() {
   window.open("call.html?room="+encodeURIComponent(room), "_blank");
 }
 function popupCall(caller) {
+  // Play ringtone in a loop
+  audioRing.currentTime = 0;
   audioRing.play();
+  let stopRinging = () => { audioRing.pause(); audioRing.currentTime = 0; };
+  setTimeout(() => { // In case alert is blocked, stop after 30s
+    stopRinging();
+  }, 30000);
   alert("Incoming audio call from " + caller + "!\nClick OK to join.");
+  stopRinging();
   window.open("call.html?room="+encodeURIComponent(room), "_blank");
 }
 function logout() {
