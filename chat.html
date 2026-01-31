@@ -4,27 +4,39 @@
   <title>Chat Room</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: Arial; padding:20px }
-    #chat { border:1px solid #ccc; height:300px; overflow:auto; padding:10px }
-    input, button, select { width:100%; padding:10px; margin-top:10px }
-    #roomTitle { margin-top:20px }
+    body { font-family: Arial; margin:0; padding:0; background:#f4f4f4 }
+    #topbar { background:#fff; padding:10px; position:sticky; top:0; z-index:10; }
+    #roomTitle { font-size:20px; margin:10px 0; }
+    #chat { margin:0 auto; max-width:600px; padding:10px 0 80px 0; }
     .msg-user { font-weight:bold }
-    .msg { margin-bottom:5px }
+    .msg { margin-bottom:10px; background:#fff; padding:10px; border-radius:8px; box-shadow:0 1px 2px #ccc; }
     .file { color:#007bff; text-decoration:underline; cursor:pointer }
     #audioRing { display:none; }
+    #msgBar { position:fixed; bottom:0; left:0; width:100%; background:#fff; padding:10px; box-shadow:0 -2px 8px #ccc; }
+    #msgBar input[type=text] { width:60%; padding:10px; }
+    #msgBar button, #msgBar input[type=file] { padding:10px; margin-left:5px; }
+    #createRoomBar { margin:10px 0; }
   </style>
 </head>
 <body>
-<select id="roomSelect"></select>
-<button onclick="joinRoom()">Join Room</button>
-<button onclick="startAudioCall()">Audio Call</button>
-<button onclick="uploadFile()">Upload File/Image</button>
-<button onclick="capturePhoto()">Take Photo</button>
-<h3 id="roomTitle">Chat Room</h3>
+<div id="topbar">
+  <span id="roomTitle">Room: general</span>
+  <select id="roomSelect"></select>
+  <button onclick="joinRoom()">Join Room</button>
+  <button onclick="startAudioCall()">Audio Call</button>
+  <button onclick="uploadFile()">Upload File/Image</button>
+  <button onclick="capturePhoto()">Take Photo</button>
+  <div id="createRoomBar">
+    <input id="newRoom" placeholder="New room name">
+    <button onclick="createRoom()">Create Room</button>
+  </div>
+</div>
 <div id="chat"></div>
-<input id="msg" placeholder="Message">
-<button onclick="send()">Send</button>
-<input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+<div id="msgBar">
+  <input id="msg" type="text" placeholder="Message">
+  <button onclick="send()">Send</button>
+  <input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+</div>
 <canvas id="photoCanvas" style="display:none"></canvas>
 <audio id="audioRing" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -38,30 +50,29 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-let user = localStorage.getItem("user");
-let pass = localStorage.getItem("pass");
-if (!user || !pass) window.location.href = "index.html";
-firebase.database().ref("users/"+user).once("value", snap => {
-  var d = snap.val();
-  if (!d || d.password !== pass || d.blocked || !d.approved) window.location.href = "index.html";
-});
-
+let user = localStorage.getItem("user") || "Guest";
+let pass = localStorage.getItem("pass") || "";
 let room = "general";
 let chatBox = document.getElementById("chat");
 let audioRing = document.getElementById("audioRing");
 
 // Room list
-firebase.database().ref("rooms").on("value", snap => {
-  let sel = document.getElementById("roomSelect");
-  sel.innerHTML = "";
-  snap.forEach(c => {
-    let opt = document.createElement("option");
-    opt.value = c.key;
-    opt.innerText = c.key;
-    sel.appendChild(opt);
+function loadRooms() {
+  firebase.database().ref("rooms").on("value", snap => {
+    let sel = document.getElementById("roomSelect");
+    sel.innerHTML = "";
+    snap.forEach(c => {
+      let opt = document.createElement("option");
+      opt.value = c.key;
+      opt.innerText = c.key;
+      sel.appendChild(opt);
+    });
+    sel.value = room;
+    document.getElementById("roomTitle").innerText = "Room: " + room;
   });
-  sel.value = room;
-});
+}
+loadRooms();
+
 document.getElementById("roomSelect").onchange = function() {
   joinRoom();
 };
@@ -70,6 +81,16 @@ function joinRoom() {
   room = document.getElementById("roomSelect").value;
   document.getElementById("roomTitle").innerText = "Room: " + room;
   loadChat();
+}
+function createRoom() {
+  let r = document.getElementById("newRoom").value.trim();
+  if (!r) return alert("Enter room name");
+  firebase.database().ref("rooms/"+r).set(true, () => {
+    document.getElementById("newRoom").value = "";
+    room = r;
+    loadRooms();
+    loadChat();
+  });
 }
 function loadChat() {
   chatBox.innerHTML = "";
@@ -82,7 +103,7 @@ function loadChat() {
     if (v.photo) html += `<br><img src="${v.photo}" style="max-width:120px">`;
     html += "</div>";
     chatBox.innerHTML += html;
-    chatBox.scrollTop = chatBox.scrollHeight;
+    window.scrollTo(0, document.body.scrollHeight);
     // Popup/ringtone for incoming call
     if (v.call && v.name !== user) {
       popupCall(v.name);
@@ -132,7 +153,6 @@ function capturePhoto() {
   });
 }
 function startAudioCall() {
-  // Notify all users in room
   firebase.database().ref("chats/"+room).push({ call:true, name:user });
   window.open("call.html?room="+encodeURIComponent(room), "_blank");
 }
