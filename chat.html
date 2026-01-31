@@ -10,20 +10,26 @@
     #roomTitle { margin-top:20px }
     .msg-user { font-weight:bold }
     .msg { margin-bottom:5px }
+    .file { color:#007bff; text-decoration:underline; cursor:pointer }
+    #audioRing { display:none; }
   </style>
 </head>
 <body>
-
 <select id="roomSelect"></select>
 <button onclick="joinRoom()">Join Room</button>
-<button onclick="startVideo()">Video Call</button>
+<button onclick="startAudioCall()">Audio Call</button>
+<button onclick="uploadFile()">Upload File/Image</button>
+<button onclick="capturePhoto()">Take Photo</button>
 <h3 id="roomTitle">Chat Room</h3>
 <div id="chat"></div>
 <input id="msg" placeholder="Message">
 <button onclick="send()">Send</button>
-
+<input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+<canvas id="photoCanvas" style="display:none"></canvas>
+<audio id="audioRing" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 <script>
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
@@ -32,61 +38,113 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 
-function getQueryParam(name) {
-  let url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
-var room = getQueryParam("room") || "general";
-var userName = getQueryParam("name") || "Anonymous";
-document.getElementById("roomTitle").innerText = "Room: " + room;
+let user = localStorage.getItem("user");
+let pass = localStorage.getItem("pass");
+if (!user || !pass) window.location.href = "index.html";
+firebase.database().ref("users/"+user).once("value", snap => {
+  var d = snap.val();
+  if (!d || d.password !== pass || d.blocked || !d.approved) window.location.href = "index.html";
+});
 
-// Populate room list from approved requests
-firebase.database().ref("requests").on("value", snap => {
-  let rooms = new Set();
-  snap.forEach(c => {
-    let d = c.val();
-    if (d.status === "approved" && d.room) rooms.add(d.room);
-  });
+let room = "general";
+let chatBox = document.getElementById("chat");
+let audioRing = document.getElementById("audioRing");
+
+// Room list
+firebase.database().ref("rooms").on("value", snap => {
   let sel = document.getElementById("roomSelect");
   sel.innerHTML = "";
-  rooms.forEach(r => {
+  snap.forEach(c => {
     let opt = document.createElement("option");
-    opt.value = r;
-    opt.innerText = r;
+    opt.value = c.key;
+    opt.innerText = c.key;
     sel.appendChild(opt);
   });
-  // Set current room as selected if present
   sel.value = room;
 });
+document.getElementById("roomSelect").onchange = function() {
+  joinRoom();
+};
 
-// Join selected room
 function joinRoom() {
-  var sel = document.getElementById("roomSelect");
-  var selectedRoom = sel.value;
-  window.location.href = "chat.html?room=" + encodeURIComponent(selectedRoom) + "&name=" + encodeURIComponent(userName);
+  room = document.getElementById("roomSelect").value;
+  document.getElementById("roomTitle").innerText = "Room: " + room;
+  loadChat();
 }
-
-// Video call (using Jitsi Meet)
-function startVideo() {
-  let url = "https://meet.jit.si/" + encodeURIComponent(room);
-  window.open(url, "_blank");
+function loadChat() {
+  chatBox.innerHTML = "";
+  firebase.database().ref("chats/"+room).off();
+  firebase.database().ref("chats/"+room).on("child_added", s => {
+    let v = s.val();
+    let html = `<div class="msg"><span class="msg-user">${v.name || "Anon"}:</span> `;
+    if (v.msg) html += v.msg;
+    if (v.file) html += `<a class="file" href="${v.file}" target="_blank">[File]</a>`;
+    if (v.photo) html += `<br><img src="${v.photo}" style="max-width:120px">`;
+    html += "</div>";
+    chatBox.innerHTML += html;
+    chatBox.scrollTop = chatBox.scrollHeight;
+    // Popup/ringtone for incoming call
+    if (v.call && v.name !== user) {
+      popupCall(v.name);
+    }
+  });
 }
-
-// Chat logic
-var chatBox = document.getElementById("chat");
-chatBox.innerHTML = "";
-firebase.database().ref("chats/"+room).on("child_added", s => {
-  let v = s.val();
-  chatBox.innerHTML += `<div class="msg"><span class="msg-user">${v.name || "Anon"}:</span> ${v.msg}</div>`;
-  chatBox.scrollTop = chatBox.scrollHeight;
-});
 function send() {
   var text = document.getElementById("msg").value;
   if (!text.trim()) return;
-  firebase.database().ref("chats/"+room).push({ msg:text, name: userName });
+  firebase.database().ref("chats/"+room).push({ msg:text, name: user });
   document.getElementById("msg").value = "";
 }
-</script>
+function uploadFile() {
+  document.getElementById("fileInput").click();
+}
+document.getElementById("fileInput").onchange = function(e) {
+  let file = e.target.files[0];
+  if (!file) return;
+  let ref = firebase.storage().ref("uploads/"+room+"/"+Date.now()+"_"+file.name);
+  ref.put(file).then(snap => {
+    ref.getDownloadURL().then(url => {
+      firebase.database().ref("chats/"+room).push({ file:url, name:user });
+    });
+  });
+};
+function capturePhoto() {
+  navigator.mediaDevices.getUserMedia({ video:true }).then(stream => {
+    let video = document.createElement("video");
+    video.srcObject = stream;
+    video.play();
+    video.onloadedmetadata = () => {
+      let canvas = document.getElementById("photoCanvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      let ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0);
+      stream.getTracks().forEach(track => track.stop());
+      canvas.toBlob(blob => {
+        let ref = firebase.storage().ref("uploads/"+room+"/photo_"+Date.now()+".png");
+        ref.put(blob).then(snap => {
+          ref.getDownloadURL().then(url => {
+            firebase.database().ref("chats/"+room).push({ photo:url, name:user });
+          });
+        });
+      }, "image/png");
+    };
+  });
+}
+function startAudioCall() {
+  // Notify all users in room
+  firebase.database().ref("chats/"+room).push({ call:true, name:user });
+  window.open("call.html?room="+encodeURIComponent(room), "_blank");
+}
+function popupCall(caller) {
+  audioRing.play();
+  alert("Incoming audio call from " + caller + "!\nClick OK to join.");
+  window.open("call.html?room="+encodeURIComponent(room), "_blank");
+}
 
+// Create room if not exists
+firebase.database().ref("rooms/"+room).set(true);
+loadChat();
+</script>
 </body>
 </html>
