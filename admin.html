@@ -1,55 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial; background:#111; color:#fff; padding:20px }
+    .card {
+      background:#222; padding:15px; margin-bottom:10px;
+      border-radius:8px;
+    }
+    input { padding:6px; margin-top:5px; width:100% }
+    button {
+      margin-top:8px; padding:8px;
+      border:none; border-radius:5px; cursor:pointer
+    }
+    .approve { background:#28a745; color:#fff }
+    .reject { background:#dc3545; color:#fff }
+  </style>
+</head>
+<body>
+
+<h2>👑 Admin Approval Panel</h2>
+
+<div id="requests"></div>
+
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
-/* ===== FIREBASE CONFIG ===== */
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
   databaseURL: "https://royrohit-294fc-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "royrohit-294fc"
 };
 
-/* ===== PREVENT DOUBLE INIT ===== */
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
 const db = firebase.database();
-let reqId = null;
+const box = document.getElementById("requests");
 
-function requestJoin() {
-  const name = document.getElementById("name").value.trim();
-  if (!name) {
-    alert("Please enter your name");
-    return;
-  }
+db.ref("requests").on("value", snap => {
+  box.innerHTML = "";
+  snap.forEach(child => {
+    const d = child.val();
+    if (d.status !== "pending") return;
 
-  db.ref("requests").push({
-    name: name,
-    status: "pending",
-    room: "",
-    time: Date.now()
-  }).then(ref => {
-    reqId = ref.key;
-    document.getElementById("status").innerText =
-      "⏳ Waiting for admin approval...";
-  }).catch(err => {
-    alert("Firebase error: " + err.message);
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <b>Name:</b> ${d.name}<br>
+      <input placeholder="Room name" id="room-${child.key}">
+      <button class="approve">Approve</button>
+      <button class="reject">Reject</button>
+    `;
+
+    div.querySelector(".approve").onclick = () => {
+      const room = document.getElementById(`room-${child.key}`).value;
+      if (!room) return alert("Enter room name");
+
+      db.ref("requests/"+child.key).update({
+        status:"approved",
+        room:room
+      });
+    };
+
+    div.querySelector(".reject").onclick = () => {
+      db.ref("requests/"+child.key).update({
+        status:"rejected"
+      });
+    };
+
+    box.appendChild(div);
   });
-
-  db.ref("requests").child(reqId).on("value", snap => {
-    if (!snap.exists()) return;
-    const data = snap.val();
-
-    if (data.status === "approved") {
-      window.location.href =
-        `chat.html?name=${data.name}&room=${data.room}&id=${reqId}`;
-    }
-
-    if (data.status === "rejected") {
-      document.getElementById("status").innerText =
-        "❌ Request rejected by admin";
-    }
-  });
-}
+});
 </script>
+
+</body>
+</html>
