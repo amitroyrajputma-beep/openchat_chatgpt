@@ -1,56 +1,84 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Admin Panel</title>
+  <meta charset="UTF-8">
+  <title>Admin Panel – Open Chat</title>
   <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
 
-<h2>Admin Approval Dashboard</h2>
+<h2>🛡 Admin Approval Panel</h2>
 <div id="list"></div>
 
 <script>
-const ADMIN_KEY="ROY_ADMIN_123";
+/* ================= ADMIN KEY ================= */
+const ADMIN_KEY = "ROY_ADMIN_123";
 
-if(!location.search.includes("key="+ADMIN_KEY)){
-  document.body.innerHTML="❌ Access Denied";
+/* ================= SECURITY CHECK ================= */
+if (!location.search.includes("key=" + ADMIN_KEY)) {
+  document.body.innerHTML = "<h2>❌ Access Denied</h2>";
+  throw new Error("Unauthorized");
 }
 
+/* ================= FIREBASE CONFIG ================= */
 var firebaseConfig = {
   apiKey: "AIzaSyBpcY72lQEziKJBdMWCgOIxWKLwIWe1Fgw",
-  databaseURL: "https://royrohit-294fc-default-rtdb.firebaseio.com",
+  databaseURL: "https://royrohit-294fc-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "royrohit-294fc"
 };
+
 firebase.initializeApp(firebaseConfig);
 
-const db=firebase.database();
-const list=document.getElementById("list");
+/* ================= DATABASE ================= */
+const db = firebase.database();
+const list = document.getElementById("list");
 
-db.ref("requests").on("child_added",s=>{
-  const r=s.val();
-  if(r.status!=="pending") return;
+/* ================= LOAD PENDING REQUESTS ================= */
+db.ref("requests").on("child_added", snap => {
+  const data = snap.val();
+  if (data.status !== "pending") return;
 
-  const div=document.createElement("div");
-  div.className="card";
-  div.innerHTML=`
-    <b>${r.name}</b>
-    <input id="room_${s.key}" placeholder="Room name">
-    <button onclick="approve('${s.key}')">Approve</button>
-    <button onclick="reject('${s.key}')">Reject</button>
+  const div = document.createElement("div");
+  div.className = "card";
+  div.id = snap.key;
+
+  div.innerHTML = `
+    <p><b>Name:</b> ${data.name}</p>
+    <input id="room_${snap.key}" placeholder="Enter room name">
+    <button onclick="approve('${snap.key}')">✅ Approve</button>
+    <button onclick="reject('${snap.key}')">❌ Reject</button>
   `;
+
   list.appendChild(div);
 });
 
-function approve(id){
-  const room=document.getElementById("room_"+id).value.trim();
-  if(!room) return alert("Enter room name");
-  db.ref("requests/"+id).update({status:"approved",room});
+/* ================= APPROVE ================= */
+function approve(id) {
+  const room = document.getElementById("room_" + id).value.trim();
+  if (!room) {
+    alert("Room name is required");
+    return;
+  }
+
+  db.ref("requests/" + id).update({
+    status: "approved",
+    room: room
+  });
+
+  document.getElementById(id).remove();
 }
 
-function reject(id){
-  db.ref("requests/"+id).update({status:"rejected"});
+/* ================= REJECT ================= */
+function reject(id) {
+  db.ref("requests/" + id).update({
+    status: "rejected"
+  });
+
+  document.getElementById(id).remove();
 }
 </script>
 
